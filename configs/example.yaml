@@ -1,0 +1,14 @@
+data:
+  file_path: "data/dataset.csv"
+  
+  period:
+    start_date: "2019-09-01 00:00:00"
+    end_date: "2019-09-30 23:59:59"
+
+depot:
+  latitude: 45.5069182
+  longitude: 9.2684501
+
+constraints:
+  vehicle_capacity: 200
+  num_vehicles: 20
