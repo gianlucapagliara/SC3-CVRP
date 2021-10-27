@@ -31,7 +31,7 @@ def compute_centers(clusters, dataset):
   return clusters, centers
 
 '''
-Classe che implementa un k-Means con vincoli sulla dimensione minima e/o massima dei cluster.
+Modified k-Means with constraints on min and/or max cluster size.
 '''
 class AdjustedKMeans:
   def __init__(self, n_clusters, distance, min_size=0, max_size=None, balanced = False):
@@ -42,7 +42,7 @@ class AdjustedKMeans:
     self.balanced = balanced
 
   '''
-  Metodo per il ritrovamento dei cluster.
+  Get the cluster.
   '''
   def fit_predict(self, dataset):
     min_size = len(dataset)//self.n_clusters if self.balanced else self.min_size
@@ -71,7 +71,7 @@ class AdjustedKMeans:
     return clusters
 
 '''
-Classe che implementa la risoluzione del sottoproblema di assegnazione dei nodi ai cluster.
+Cluster nodes assignment subproblem implementation.
 '''
 class subproblem(object):
   def __init__(self, centroids, data, distance, min_size, max_size):
@@ -92,44 +92,43 @@ class subproblem(object):
     clusters = list(range(self.k))
     assignments = [(i, j) for i in range(self.n) for j in range(self.k)]
     
-    # variabili di assegnazione nodo-cluster
-    # ogni assigment può assumere il valore 0 o 1 (x non appartiene o appartiene al cluster j)
+    # node-cluster assignment variables
+    # the values of each assignment can be only 0 or 1 (x belongs or not belongs to cluster j)
     self.y = pulp.LpVariable.dicts('data-to-cluster assignments',
                               assignments,
                               lowBound=0,
                               upBound=1,
                               cat=pulp.LpInteger)
 
-    # variabili di outflow per i cluster
+    # outflow cluster variables
     self.b = pulp.LpVariable.dicts('cluster outflows',
                               clusters,
                               lowBound=0,
                               upBound=self.n-self.min_size,
                               cat=pulp.LpContinuous)
     
-    # creazione del modello
+    # model creation
     self.model = pulp.LpProblem("Model for assignment subproblem", pulp.LpMinimize)
 
-    # funzione obiettivo
+    # ojective function
     self.model += pulp.lpSum([distances(assignment) * self.y[assignment] for assignment in assignments])
 
-    # ogni nodo può essere assegnato solo ad un cluster
+    # each node must be assigned to only one cluster
     for i in range(self.n):
         self.model += pulp.lpSum(self.y[(i, j)] for j in range(self.k)) == 1
 
-    # per ogni cluster, l’outflow deve essere uguale al numero di nodi assegnati a quel cluster meno la dimensione minima
+    # for each cluster, outflow = assigned nodes - min size
     for j in range(self.k):
         self.model += pulp.lpSum(self.y[(i, j)] for i in range(self.n)) - self.min_size == self.b[j]
 
-    # per ogni cluster, l’outflow deve essere minore o uguale alla dimensione massima meno la dimensione minima
+    # for each cluster, outflow <= max size - min size
     for j in range(self.k):
         self.model += self.b[j] <= self.max_size - self.min_size
     
-    # la somma degli outflow dei vari cluster deve essere uguale al numero di nodi meno la dimensione minima moltiplicata per k
     self.model += pulp.lpSum(self.b[j] for j in range(self.k)) == self.n - (self.k * self.min_size)
 
   '''
-  Metodo per la risoluzione del sottoproblema di assegnazione.
+  Get the clusters solution to the subproblem.
   '''
   def solve(self, timeout = 5):
     self.status = self.model.solve(pulp.PULP_CBC_CMD(maxSeconds=timeout))

@@ -3,7 +3,7 @@ from datetime import timedelta
 import pandas as pd
 
 '''
-Classe che astrae l'esecuzione di un turno di lavoro.
+Work shift abstraction.
 '''
 class Shift:
   def __init__(self, data, depot, cluster_class, graph_class, start_date=None):
@@ -32,8 +32,8 @@ class Shift:
     return self.data
 
   '''
-  Metodo per la creazione dei cluster.
-  Non produce cluster se non è stata passata una classe per il clustering.
+  Method to create a group of bins, a cluster.
+  It doesn't make clusters if no clustering class was given on initialization.
   '''
   def clusterize(self, columns, max_size=175, kwargs={}):
     if(self.cluster_class is None):
@@ -58,9 +58,9 @@ class Shift:
     return self.data.loc[:, 'cluster']
 
   '''
-  Metodo per la costruzione dei grafi.
-  Viene costruito un grafo per ogni cluster, se è stata passata una classe per il clustering.
-  Altrimenti viene costruito un unico grafo.
+  Get the graphs.
+  It returns a graph for every cluster, if clustering class was given on intialization.
+  Otherwise, it returns only one graph.
   '''
   def build_graphs(self, columns, kwargs={}):
     if(self.cluster_class is not None):
@@ -76,9 +76,9 @@ class Shift:
     return self.graphs
 
   '''
-  Metodo per la costruzione dei percorsi.
-  Viene costruito un percorso per ogni cluster, se è stata passata una classe per il clustering.
-  Altrimenti si usa l'algoritmo di routing per la costruzione dei percorsi per ogni veicolo.
+  Get the routes.
+  It returns a route for every cluster, if clustering class was given on intialization.
+  Otherwise, the routing algorithm is used to make a route for each vehicle.
   '''
   def get_routes(self):
     if(not self.routes):
@@ -102,7 +102,7 @@ class Shift:
     return self.routes
 
   '''
-  Metodo per il calcolo della distanza totale.
+  Get the total distance of the simulated shifts.
   '''
   def get_distance(self):
     total_distance = 0
@@ -111,7 +111,7 @@ class Shift:
     return total_distance
 
   '''
-  Metodo per il calcolo degli orari di visita di ogni cestino.
+  Get the timetables of the empting of every bin.
   '''
   def get_timetables(self, distance_function, speed=30, emp_time=60):
     timetables = []

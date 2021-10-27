@@ -9,18 +9,8 @@ from scipy.spatial.distance import cdist
 
 from abstractgraph import AbstractGraphClass
 
-'''
-utilities per il calcolo parallelo
+# Parallel computation utilities
 
-N.B.:
-    Tutte le funzioni parallele sono state testate 
-    e mantenute solo se le performance risultavano migliori
-    di quelle delle funzioni sequenziali.
-    Alcune sono state scartate
-
-'''
-
-# calcola la lunghezza di un percorso
 @njit(parallel=True, fastmath=True)
 def fast_sum(route, dimensions, dist_matrix):
     total_distance = 0.0
@@ -28,7 +18,6 @@ def fast_sum(route, dimensions, dist_matrix):
         total_distance += dist_matrix[route[i], route[i+1]]
     return total_distance
 
-# genera la nuova popolazione tramite crossover
 @njit()
 def fast_breed(size, mating_pool, dimensions, start_node,
                end_node, nodes, dist_matrix):
@@ -48,7 +37,6 @@ def fast_breed(size, mating_pool, dimensions, start_node,
                                    dimensions+1, dist_matrix)
     return children
 
-# muta gli individui selezionati
 @njit()
 def fast_mutate(individuals, dimensions, dist_matrix):
     mutated = individuals.copy()
@@ -63,8 +51,6 @@ def fast_mutate(individuals, dimensions, dist_matrix):
                                   dimensions+1, dist_matrix)
     return mutated
 
-# esplora 'size' soluzioni parallele eseguendo il passo di ottimizzazione 2-opt
-# ritorna il risultato migliore
 @njit()
 def fast_2_opt(route, size, dimensions, dist_matrix):
     results = np.zeros(shape=(size, route.shape[0]+1))
@@ -80,15 +66,11 @@ def fast_2_opt(route, size, dimensions, dist_matrix):
     return results[0]
 
 
-'''fine utilities calcolo parallelo'''
-
-
-# trova un percorso sub-ottimale tramite algoritmo genetico.
-# se il punto iniziale e finale coincidono, usare solo start_node
-
+'''
+Genetic Algorithm to find an optimal solution to a routing problem.
+'''
 class GeneticAlgorithmGraph(AbstractGraphClass):
 
-    # inizializza i parametri dell'algoritmo e le variabili di classe
     def __init__(self, data, start_node, end_node=None, **kwargs):
         self.pop_size = kwargs['pop_size']
         self.elite_size = kwargs['elite_size']
@@ -117,7 +99,6 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
         self.shortest_path_length = None
         self.shortest_path = None
 
-    # distruttore
     def __del__(self):
         del (self.nodes)
         del (self.population)
@@ -126,17 +107,13 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
         del (self.dist_matrix)
         del (self.shortest_path)
 
-    # calcola la matrice delle distanze limitando la precisione al centesimo
     def compute_distances(self, data):
         self.dist_matrix = ((cdist(data, data, self.metric)
                              * 100000).astype(int)/100000).astype(float)
-
-    # calcola la lunghezza di un percorso
-    # utilizza l'utility fast_sum per il calcolo parallelo
+    
     def route_length(self, route):
         return fast_sum(route.astype(int), self.dimensions+1, self.dist_matrix)
 
-    # crea un nuovo percorso disponendo i nodi in maniera casuale
     def create_route(self):
         route = np.zeros(self.dimensions+3)
         route[1:-2] = np.random.choice(range(1, self.dimensions+1),
@@ -146,18 +123,12 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
         route[-1] = self.route_length(route)
         return route
 
-    # genera la popolazione iniziale
     def generate_initial_population(self):
         self.population[:] = [self.create_route()
                               for i in range(self.pop_size)]
-
-    # ordina i percorsi in base alla lunghezza (ordine ascendente)
     def rank_routes(self):
         self.population = self.population[self.population[:, -1].argsort()]
 
-    # seleziona i percorsi da usare per il crossover.
-    # i migliori sono selezionati a prescindere,
-    # i restanti posti sono occupati da individui selezionati casualmente
     def select_routes(self):
         selection = self.population.copy()
         selection[self.elite_size:] = self.population[np.random.randint(
@@ -165,23 +136,17 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
         selection = selection[selection[:, -1].argsort()]
         return selection
 
-    # crea la mating-pool per la riproduzione
     def generate_mating_pool(self):
         self.rank_routes()
         mating_pool = self.select_routes()
         return mating_pool
 
-    # avvia il processo di riproduzione tramite crossover
-    # gli individui migliori sono tenuti per la generazione successiva
-    # utilizza l'utility fast_breed per il calcolo parallelo
     def breed_population(self, mating_pool):
         self.population[:self.elite_size] = mating_pool[:self.elite_size]
         self.population[self.elite_size:] = fast_breed(
             self.pop_size-self.elite_size, mating_pool, self.dimensions, self.start_node,
             self.end_node, self.nodes, self.dist_matrix)
 
-    # applica una mutazione a un numero casuale di individui non elitari
-    # utilizza l'utility fast_mutate per il calcolo parallelo
     def mutate_population(self):
         chances = np.concatenate((np.ones(
             shape=self.elite_size), np.random.random_sample(size=self.pop_size-self.elite_size)), axis=0)
@@ -190,15 +155,12 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
             self.population[to_mutate] = fast_mutate(
                 self.population[to_mutate], self.dimensions, self.dist_matrix)
 
-    # crea la nuova generazione mediante i passi di riproduzione e mutazione
     def get_next_generation(self):
         mating_pool = self.generate_mating_pool()
         self.breed_population(mating_pool)
         self.mutate_population()
         self.rank_routes()
 
-    # applica il passo di ottimizzazione 3-opt per il percorso selezionato
-    # ritorna il percorso migliore
     def reverse_3_opt(self, route, i, j, k, l):
         outcomes = np.repeat([np.concatenate((route, [0.0]))], 8, axis=0)
         for outcome, flip in enumerate(product([0, 1], repeat=3)):
@@ -215,9 +177,6 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
             outcomes[outcome, -1] = self.route_length(outcomes[outcome])
         return outcomes[outcomes[:, -1].argsort()][0]
 
-    # applica il passo di ottimizzazione 2-opt
-    # finchè il risultato cessa di migliorare per un certo numero di iterazioni.
-    # utilizza l'utility fast_2_opt per l'esplorazione parallela di più soluzioni
     def apply_2_opt(self):
         no_improvement = 0
         while no_improvement < 1e4:
@@ -230,8 +189,6 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
                 self.shortest_path = path[:-1].astype(int)
                 self.shortest_path_length = cost
 
-    # applica il passo di ottimizzazione 3-opt
-    # finchè il risultato cessa di migliorare per un certo numero di iterazioni.
     def apply_3_opt(self):
         no_improvement = 0
         while no_improvement < 1e3:
@@ -246,11 +203,6 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
                 self.shortest_path = path[:-1].astype(int)
                 self.shortest_path_length = cost
 
-    # esegue tutti i passi necessari per la risoluzione del problema:
-    # - genera una popolazione iniziale;
-    # - itera per un certo numero di generazioni;
-    # - applica l'ottimizzazione 2-opt;
-    # - applica l'ottimizzazione 3-opt;
     def get_shortest_path(self):
         self.history = np.zeros(shape=(self.generations, 2))
         self.generate_initial_population()
@@ -263,13 +215,11 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
         self.apply_3_opt()
         return self.shortest_path
 
-    # ritorna la lunghezza del percorso ottimale
     def get_shortest_path_length(self):
         if self.shortest_path_length is None:
             self.get_shortest_path()
         return self.shortest_path_length
 
-    # disegna il grafico del percorso ottimale
     def draw_path(self, filename=None, figsize=(8, 8), with_labels=True, width=0.5, node_size=300, alpha=0.7, font_size=8):
         graph = nx.DiGraph()
         for i in range(len(self.shortest_path[:-1])):
