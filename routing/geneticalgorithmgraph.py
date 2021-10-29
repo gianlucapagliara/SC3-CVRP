@@ -11,12 +11,14 @@ from abstractgraph import AbstractGraphClass
 
 # Parallel computation utilities
 
+
 @njit(parallel=True, fastmath=True)
 def fast_sum(route, dimensions, dist_matrix):
     total_distance = 0.0
     for i in prange(dimensions):
         total_distance += dist_matrix[route[i], route[i+1]]
     return total_distance
+
 
 @njit()
 def fast_breed(size, mating_pool, dimensions, start_node,
@@ -37,6 +39,7 @@ def fast_breed(size, mating_pool, dimensions, start_node,
                                    dimensions+1, dist_matrix)
     return children
 
+
 @njit()
 def fast_mutate(individuals, dimensions, dist_matrix):
     mutated = individuals.copy()
@@ -50,6 +53,7 @@ def fast_mutate(individuals, dimensions, dist_matrix):
         mutated[i, -1] = fast_sum(mutated[i].astype(np.int32),
                                   dimensions+1, dist_matrix)
     return mutated
+
 
 @njit()
 def fast_2_opt(route, size, dimensions, dist_matrix):
@@ -66,10 +70,12 @@ def fast_2_opt(route, size, dimensions, dist_matrix):
     return results[0]
 
 
-'''
-Genetic Algorithm to find an optimal solution to a routing problem.
-'''
+
+
 class GeneticAlgorithmGraph(AbstractGraphClass):
+    '''
+    Genetic Algorithm to find an optimal solution to a routing problem.
+    '''
 
     def __init__(self, data, start_node, end_node=None, **kwargs):
         self.pop_size = kwargs['pop_size']
@@ -110,7 +116,7 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
     def compute_distances(self, data):
         self.dist_matrix = ((cdist(data, data, self.metric)
                              * 100000).astype(int)/100000).astype(float)
-    
+
     def route_length(self, route):
         return fast_sum(route.astype(int), self.dimensions+1, self.dist_matrix)
 
@@ -126,6 +132,7 @@ class GeneticAlgorithmGraph(AbstractGraphClass):
     def generate_initial_population(self):
         self.population[:] = [self.create_route()
                               for i in range(self.pop_size)]
+
     def rank_routes(self):
         self.population = self.population[self.population[:, -1].argsort()]
 
